@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import pigImg from './assets/pig.png';
+import perfectMusic from './assets/Perfect.mp3';
 
 const HeartCanvas = ({ active }) => {
   const canvasRef = useRef(null);
@@ -14,12 +15,12 @@ const HeartCanvas = ({ active }) => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const createParticle = () => {
+    const createParticle = (emitterX) => {
       return {
-        x: canvas.width / 2,
+        x: emitterX,
         y: canvas.height,
-        vx: (Math.random() - 0.5) * 20,
-        vy: -Math.random() * 25 - 5,
+        vx: (Math.random() - 0.5) * 15,
+        vy: -Math.random() * 25 - 10,
         size: Math.random() * 15 + 5,
         color: `hsl(${Math.random() * 30 + 330}, 100%, 70%)`,
         opacity: 1,
@@ -35,7 +36,6 @@ const HeartCanvas = ({ active }) => {
       ctx.translate(x, y);
       ctx.rotate(rotation);
       ctx.beginPath();
-      // Heart path
       ctx.moveTo(0, 0);
       ctx.bezierCurveTo(-size / 2, -size / 2, -size, 0, 0, size);
       ctx.bezierCurveTo(size, 0, size / 2, -size / 2, 0, 0);
@@ -49,8 +49,13 @@ const HeartCanvas = ({ active }) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (active && particles.current.length < 1000) {
-        for (let i = 0; i < 20; i++) {
-          particles.current.push(createParticle());
+        // Emitter Left (approx 18% width based on image markings)
+        for (let i = 0; i < 10; i++) {
+          particles.current.push(createParticle(canvas.width * 0.18));
+        }
+        // Emitter Right (approx 82% width based on image markings)
+        for (let i = 0; i < 10; i++) {
+          particles.current.push(createParticle(canvas.width * 0.82));
         }
       }
 
@@ -64,7 +69,6 @@ const HeartCanvas = ({ active }) => {
         p.y += p.vy;
         p.rotation += p.rotationSpeed;
         
-        // Fade out as it stays longer or falls back to bottom
         if (p.vy > 0) {
           p.opacity -= 0.01;
         }
@@ -95,13 +99,78 @@ const HeartCanvas = ({ active }) => {
   );
 };
 
+const SecretDashboard = () => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/forgiveness')
+      .then(res => res.json())
+      .then(setData)
+      .catch(err => console.error("Failed to fetch:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="app-container" style={{ overflowY: 'auto', padding: '2rem' }}>
+      <motion.div 
+        className="glass-card"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ maxWidth: '800px', width: '100%', textAlign: 'left' }}
+      >
+        <h1 className="title" style={{ fontSize: '2.5rem' }}>Secret Love Tracker 🐷💖</h1>
+        <p className="subtitle">Every time Semi chooses love over anger...</p>
+
+        {loading ? (
+          <p>Loading the magic...</p>
+        ) : data.length === 0 ? (
+          <p style={{ opacity: 0.6 }}>No records yet. Better start being extra nice! 😉</p>
+        ) : (
+          <div style={{ marginTop: '2rem' }}>
+            {data.slice().reverse().map((item, i) => (
+              <div key={i} style={{ 
+                padding: '1rem', 
+                borderBottom: '1px solid rgba(0,0,0,0.05)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--pink-deep)' }}>{item.message}</div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>{new Date(item.timestamp).toLocaleString()}</div>
+                </div>
+                <div style={{ color: 'var(--pink-accent)' }}><Heart size={16} fill="currentColor" /></div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button 
+          className="music-btn" 
+          onClick={() => window.location.href = '/'}
+          style={{ marginTop: '2rem' }}
+        >
+          Back to Home
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
 const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [hearts, setHearts] = useState([]);
 
-  // Suggesting "Perfect" by Ed Sheeran for the best experience.
-  const [audio] = useState(new Audio('https://www.chosic.com/wp-content/uploads/2021/04/And-So-It-Begins-Acoustic-Guitar-Instrumental.mp3'));
+  // Simple Routing
+  const currentPath = window.location.pathname;
+  if (currentPath === '/secret-love-tracker') {
+    return <SecretDashboard />;
+  }
+
+  // Using "Perfect" by Ed Sheeran as requested.
+  const [audio] = useState(new Audio(perfectMusic));
 
   useEffect(() => {
     audio.loop = true;
@@ -146,11 +215,14 @@ const App = () => {
   const handleForgive = () => {
     setShowCelebration(true);
     
-    // Automatically open WhatsApp with a romantic message
-    setTimeout(() => {
-      const romanticMsg = encodeURIComponent("I've forgiven you, my love! ❤️ You're the best. I love you so much! 🐷✨");
-      window.open(`https://wa.me/?text=${romanticMsg}`, '_blank');
-    }, 3000); // 3 second delay to enjoy the fireworks first
+    // Save to Backend
+    fetch('/api/forgive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: "Semi Forgave You! ❤️" })
+    }).catch(err => console.error("Failed to sync with backend:", err));
+
+
   };
 
   return (
@@ -211,7 +283,7 @@ const App = () => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
       >
-        <h1 className="title">{showCelebration ? "To My Forever," : "Hey Semi......,"}</h1>
+        <h1 className="title">{showCelebration ? "To My Princes," : "Hey Semi......,"}</h1>
         <p className="subtitle">
           {showCelebration ? (
             <>Thank you for your infinite grace and love. 💖<br/>You are my everything, now and forever.</>
@@ -260,11 +332,6 @@ const App = () => {
           </button>
         </div>
         
-        {!isPlaying && !showCelebration && (
-          <p style={{ fontSize: '0.8rem', marginTop: '1rem', opacity: 0.6 }}>
-            Recommended Song: "Perfect" by Ed Sheeran
-          </p>
-        )}
       </motion.div>
 
       {/* Celebration Overlay */}
